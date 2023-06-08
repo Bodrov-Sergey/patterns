@@ -48,6 +48,12 @@ const App = () => {
   }
 
   // HELPERS
+  const getAvaliable = (
+    enemy: IUnitInter[],
+    friendly: IUnitInter[],
+    index: number,
+    sar: number
+  ) => {}
   const healAction = (healpoint: number, context: IUnitInter & IHealable) => {
     if (context.HitPoints > 0) {
       if (context.HitPoints + healpoint > context.MaxHp) {
@@ -84,7 +90,7 @@ const App = () => {
   }
 
   // BASE UNIT CLASS
-  class IUnit implements IUnitInter {
+  abstract class IUnit implements IUnitInter {
     constructor(
       UnitName: string,
       HitPoints: number,
@@ -204,14 +210,14 @@ const App = () => {
     buff: (buff: buffVariants) => void
   }
   class HeavyIntantryDecorator extends IUnit implements ICloneable, IBuffable {
-    constructor(unit: IUnitInter & ICloneable & IBuffable) {
+    constructor(unit: HeavyIntantry) {
       super(unit.UnitName, unit.HitPoints, unit.Attack, unit.Defense)
 
       this.buffed = unit.buffed
       this.buff = unit.buff
       this.unit = unit
     }
-    unit: IUnitInter & ICloneable & IBuffable
+    unit: HeavyIntantry
     takeDamage(attackPoints: number): void {
       this.unit.takeDamage.call(this, attackPoints)
       if (this.buffed && Math.floor(Math.random() * 2) === 0) {
@@ -237,7 +243,7 @@ const App = () => {
   }
   class Knight extends IUnit implements ICloneable {
     constructor() {
-      super("Knight", 4, 6, 0)
+      super("П.Е.К.К.А", 4, 6, 0)
     }
     cloneable: true = true
   }
@@ -361,65 +367,109 @@ const App = () => {
     | "Целительница"
     | "Колдун"
 
-  class ArmyFactory {
-    constructor() {
-      this.createArmy = (unitsAvaliable) => {
-        const getUnitByName = (name: UnitName) => {
-          switch (name) {
-            case "Гоблин":
-              return new LightIntantry()
-            case "Варвар":
-              let HeavyUnit = new HeavyIntantry()
-              return new HeavyIntantryDecorator(HeavyUnit)
-            case "Лучница":
-              return new Archer()
-            case "Целительница":
-              return new Healer()
-            case "Колдун":
-              return new Warlock()
-            case "П.Е.К.К.А":
-              return new Knight()
-            case "Гуляй-город":
-              const GulyayGorodUnit = new GulyayGorod()
-              return new GulyayGorodAdapter(GulyayGorodUnit)
-          }
-        }
-        // массив с ценами каждого юнита чтобы потом понять можно ли еще добавить
-        const prices = unitsAvaliable.map((el) => {
-          const unit = getUnitByName(el)
-          return (
-            unit.Attack +
-            unit.Defense +
-            unit.HitPoints +
-            (isISpecialAbility(unit) ? (unit.Range + unit.Strangth) * 2 : 0)
-          )
-        })
-
-        let currentResidue = armyPrice
-        const resultArmy: IUnitInter[] = []
-        while (true) {
-          const randomUnit = getUnitByName(
-            unitsAvaliable[Math.floor(Math.random() * unitsAvaliable.length)]
-          )
-          const randomUnitPrice =
-            randomUnit.Attack +
-            randomUnit.Defense +
-            randomUnit.HitPoints +
-            (isISpecialAbility(randomUnit)
-              ? (randomUnit.Range + randomUnit.Strangth) * 2
-              : 0)
-          if (currentResidue - randomUnitPrice >= 0 && currentResidue > 0) {
-            resultArmy.push(randomUnit)
-            currentResidue -= randomUnitPrice
-            // eslint-disable-next-line no-loop-func
-          } else if (!prices.filter((el) => el <= currentResidue).length) {
-            break
-          }
-        }
-        return resultArmy
-      }
+  abstract class AbstractFactory {
+    createUnit(): void {}
+  }
+  class LightIntantryFactory extends AbstractFactory {
+    createUnit(): IUnitInter {
+      return new LightIntantry()
     }
-    createArmy: (units: UnitName[]) => IUnitInter[]
+  }
+  class HeavyIntantryFactory extends AbstractFactory {
+    createUnit(): IUnitInter {
+      let HeavyUnit = new HeavyIntantry()
+      return new HeavyIntantryDecorator(HeavyUnit)
+    }
+  }
+  class ArcherFactory extends AbstractFactory {
+    createUnit(): IUnitInter {
+      return new Archer()
+    }
+  }
+  class HealerFactory extends AbstractFactory {
+    createUnit(): IUnitInter {
+      return new Healer()
+    }
+  }
+  class WarlockFactory extends AbstractFactory {
+    createUnit(): IUnitInter {
+      return new Warlock()
+    }
+  }
+  class KnightFactory extends AbstractFactory {
+    createUnit(): IUnitInter {
+      return new Knight()
+    }
+  }
+  class GulyayGorodFactory extends AbstractFactory {
+    createUnit(): IUnitInter {
+      const GulyayGorodUnit = new GulyayGorod()
+      return new GulyayGorodAdapter(GulyayGorodUnit)
+    }
+  }
+
+  class ArmyCreate {
+    createArmy(unitsAvaliable: UnitName[]): IUnitInter[] {
+      const getUnitByName = (name: UnitName) => {
+        switch (name) {
+          case "Гоблин":
+            const unitLight = new LightIntantryFactory()
+            return unitLight.createUnit()
+          case "Варвар":
+            const unitHeavy = new HeavyIntantryFactory()
+            return unitHeavy.createUnit()
+          case "Лучница":
+            const unitArcher = new ArcherFactory()
+            return unitArcher.createUnit()
+          case "Целительница":
+            const unitHealer = new HealerFactory()
+            return unitHealer.createUnit()
+          case "Колдун":
+            const unitWarlock = new WarlockFactory()
+            return unitWarlock.createUnit()
+          case "П.Е.К.К.А":
+            const unitKnight = new KnightFactory()
+            return unitKnight.createUnit()
+          case "Гуляй-город":
+            const unitGulyayGorod = new GulyayGorodFactory()
+            return unitGulyayGorod.createUnit()
+        }
+      }
+
+      // массив с ценами каждого юнита чтобы потом понять можно ли еще добавить
+      const prices = unitsAvaliable.map((el) => {
+        const unit = getUnitByName(el)
+        return (
+          unit.Attack +
+          unit.Defense +
+          unit.HitPoints +
+          (isISpecialAbility(unit) ? (unit.Range + unit.Strangth) * 2 : 0)
+        )
+      })
+
+      let currentResidue = armyPrice
+      const resultArmy: IUnitInter[] = []
+      while (true) {
+        const randomUnit = getUnitByName(
+          unitsAvaliable[Math.floor(Math.random() * unitsAvaliable.length)]
+        )
+        const randomUnitPrice =
+          randomUnit.Attack +
+          randomUnit.Defense +
+          randomUnit.HitPoints +
+          (isISpecialAbility(randomUnit)
+            ? (randomUnit.Range + randomUnit.Strangth) * 2
+            : 0)
+        if (currentResidue - randomUnitPrice >= 0 && currentResidue > 0) {
+          resultArmy.push(randomUnit)
+          currentResidue -= randomUnitPrice
+          // eslint-disable-next-line no-loop-func
+        } else if (!prices.filter((el) => el <= currentResidue).length) {
+          break
+        }
+      }
+      return resultArmy
+    }
   }
   const [activeUnits, setActiveUnits] = useState<UnitName[]>([
     "Варвар",
@@ -428,13 +478,14 @@ const App = () => {
     "Лучница",
     "Целительница",
     "Гуляй-город",
+    "П.Е.К.К.А",
   ])
   const [battle, setBattle] = useState<Battle | null>(null)
   const [activeMove, setActiveMove] = useState(1)
 
   class Battle implements BattleInter {
     constructor() {
-      const army = new ArmyFactory()
+      const army = new ArmyCreate()
       this.blueArmy = army.createArmy(activeUnits)
       this.redArmy = army.createArmy(activeUnits)
     }
