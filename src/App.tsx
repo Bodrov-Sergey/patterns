@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react"
+import _ from "lodash"
 
 const App = () => {
   // INTERFACES
@@ -17,7 +18,12 @@ const App = () => {
   interface ISpecialAbility {
     Range: number
     Strangth: number
-    action: (enemy: IUnitInter[], friendly: IUnitInter[]) => void
+    action: (
+      enemy: IUnitInter[],
+      friendly: IUnitInter[],
+      index: number,
+      setter: (army: IUnitInter[]) => void
+    ) => void
   }
   interface IHealable {
     MaxHp: number
@@ -29,18 +35,16 @@ const App = () => {
     buff: (buff: buffVariants) => void
   }
   interface ICloneable {
-    clone: (
-      myArmy: IUnitInter[],
-      setMyArmy: (army: IUnitInter[]) => void
-    ) => void
+    cloneable: true
   }
 
-  interface Battle {
+  interface BattleInter {
     blueArmy: IUnitInter[]
     redArmy: IUnitInter[]
-    armyAttack: (attack: IUnitInter, defensive: IUnitInter) => void
+    armyAttack: (attack: IUnitInter[], defensive: IUnitInter[]) => void
     armySpecialAttack: (attack: IUnitInter[], defensive: IUnitInter[]) => void
-    clearField: (blueArmy: IUnitInter[], redArmy: IUnitInter[]) => void
+    clearField: () => void
+    makeMove: (move: number, updateMove: () => void) => BattleInter
   }
 
   // HELPERS
@@ -48,9 +52,19 @@ const App = () => {
     if (context.HitPoints > 0) {
       if (context.HitPoints + healpoint > context.MaxHp) {
         context.HitPoints = context.MaxHp
+        console.log(
+          `Целительница полностью восстанавливает здоровье у ${context.UnitName}`
+        )
       } else {
         context.HitPoints += healpoint
+        console.log(
+          `Целительница восстанавливает ${healpoint} единиц здоровья у ${context.UnitName}`
+        )
       }
+    } else {
+      console.log(
+        `Целительница пытается вылечить уже мёртвого ${context.UnitName}`
+      )
     }
   }
   const getRandUnit = (units: IUnitInter[]) => {
@@ -60,7 +74,7 @@ const App = () => {
     return "heal" in object
   }
   function isICloneable(object: any): object is ICloneable {
-    return "heal" in object
+    return "cloneable" in object
   }
   function isIBuffable(object: any): object is IBuffable {
     return "buff" in object
@@ -88,6 +102,17 @@ const App = () => {
     readonly UnitName: string
 
     takeDamage(attackPoints: number) {
+      console.log(
+        `${this.UnitName} получает ${
+          attackPoints * (armyPrice / (armyPrice + this.Defense))
+        } урона ${
+          this.HitPoints -
+            attackPoints * (armyPrice / (armyPrice + this.Defense)) <=
+          0
+            ? "и погибает"
+            : ""
+        }`
+      )
       this.HitPoints =
         this.HitPoints - attackPoints * (armyPrice / (armyPrice + this.Defense))
     }
@@ -100,6 +125,11 @@ const App = () => {
     HitPoints: number
     readonly UnitName: string
     takeAttack(attackPoints: number) {
+      console.log(
+        `${this.UnitName} поглащает ${attackPoints} урона ${
+          this.HitPoints - attackPoints <= 0 ? "и разрушается" : ""
+        }`
+      )
       this.HitPoints = this.HitPoints - attackPoints
     }
   }
@@ -114,7 +144,7 @@ const App = () => {
       }
       this.Range = 1
       this.Strangth = 10
-      this.action = (enemy, friendly) => {
+      this.action = (enemy, friendly, index) => {
         if (friendly.length) {
           const randUnit = getRandUnit(friendly)
           if (
@@ -125,13 +155,23 @@ const App = () => {
             const random =
               buffVariants[Math.floor(Math.random() * buffVariants.length)]
             randUnit.buff(random)
+            console.log(
+              `${this.UnitName} надевает ${random} на ${randUnit.UnitName}!`
+            )
+          } else {
+            console.log(`${this.UnitName} не находит союзника для бафа...`)
           }
         }
       }
     }
     readonly Range: number
     readonly Strangth: number
-    action: (enemy: IUnitInter[], friendly: IUnitInter[]) => void
+    action: (
+      enemy: IUnitInter[],
+      friendly: IUnitInter[],
+      index: number,
+      setter: (army: IUnitInter[]) => void
+    ) => void
     readonly MaxHp: number
     heal: (heal: number) => void
   }
@@ -139,7 +179,6 @@ const App = () => {
   class HeavyIntantry extends IUnit implements ICloneable, IBuffable {
     constructor() {
       super("Варвар", 3, 2, 5)
-      this.clone = () => {}
       this.buffed = null
       this.buff = (buff) => {
         if (!this.buffed) {
@@ -160,24 +199,21 @@ const App = () => {
         }
       }
     }
-    clone: (
-      myArmy: IUnitInter[],
-      setMyArmy: (army: IUnitInter[]) => void
-    ) => void
+    cloneable: true = true
     buffed: buffVariants | null
     buff: (buff: buffVariants) => void
   }
   class HeavyIntantryDecorator extends IUnit implements ICloneable, IBuffable {
     constructor(unit: IUnitInter & ICloneable & IBuffable) {
       super(unit.UnitName, unit.HitPoints, unit.Attack, unit.Defense)
-      this.clone = unit.clone
+
       this.buffed = unit.buffed
       this.buff = unit.buff
       this.unit = unit
     }
     unit: IUnitInter & ICloneable & IBuffable
     takeDamage(attackPoints: number): void {
-      this.unit.takeDamage(attackPoints)
+      this.unit.takeDamage.call(this, attackPoints)
       if (this.buffed && Math.floor(Math.random() * 2) === 0) {
         switch (this.buffed) {
           case "Шлем":
@@ -195,32 +231,28 @@ const App = () => {
         this.buffed = null
       }
     }
-    clone: (
-      myArmy: IUnitInter[],
-      setMyArmy: (army: IUnitInter[]) => void
-    ) => void
+    cloneable: true = true
     buffed: buffVariants | null
     buff: (buff: buffVariants) => void
   }
   class Knight extends IUnit implements ICloneable {
     constructor() {
       super("Knight", 4, 6, 0)
-      this.clone = () => {}
     }
-    clone: (
-      myArmy: IUnitInter[],
-      setMyArmy: (army: IUnitInter[]) => void
-    ) => void
+    cloneable: true = true
   }
   class Archer extends IUnit implements ISpecialAbility, IHealable {
     constructor() {
       super("Лучница", 6, 3, 1)
       this.Range = 2
       this.Strangth = 3
-      this.action = (enemy, friendly) => {
+      this.action = (enemy, friendly, index) => {
         if (enemy.length) {
           const randUnit = getRandUnit(enemy)
+          console.log(`${this.UnitName} стреляет!`)
           randUnit.takeDamage(this.Strangth)
+        } else {
+          console.log(`${this.UnitName} не смогла прицелиться...`)
         }
       }
       this.MaxHp = 6
@@ -230,7 +262,12 @@ const App = () => {
     }
     readonly Range: number
     readonly Strangth: number
-    action: (enemy: IUnitInter[], friendly: IUnitInter[]) => void
+    action: (
+      enemy: IUnitInter[],
+      friendly: IUnitInter[],
+      index: number,
+      setter: (army: IUnitInter[]) => void
+    ) => void
     readonly MaxHp: number
     heal: (heal: number) => void
   }
@@ -239,7 +276,7 @@ const App = () => {
       super("Целительница", 6, 3, 1)
       this.Range = 2
       this.Strangth = 3
-      this.action = (enemy, friendly) => {
+      this.action = (enemy, friendly, index) => {
         if (friendly.length) {
           const randUnit = getRandUnit(friendly)
           if (isIHealable(randUnit)) {
@@ -254,7 +291,12 @@ const App = () => {
     }
     readonly Range: number
     readonly Strangth: number
-    action: (enemy: IUnitInter[], friendly: IUnitInter[]) => void
+    action: (
+      enemy: IUnitInter[],
+      friendly: IUnitInter[],
+      index: number,
+      setter: (army: IUnitInter[]) => void
+    ) => void
     readonly MaxHp: number
     heal: (heal: number) => void
   }
@@ -263,21 +305,38 @@ const App = () => {
       super("Колдун", 6, 3, 1)
       this.Range = 2
       this.Strangth = 3
-      this.action = (enemy, friendly) => {
+      this.action = (enemy, friendly, index, setter) => {
         if (friendly.length) {
           const randUnit = getRandUnit(friendly)
           if (
             isICloneable(randUnit) &&
             Math.floor(Math.random() * 100 + 1) <= this.Strangth
           ) {
-            randUnit.clone([], () => {})
+            const newArmy: IUnitInter[] = []
+            friendly.forEach((el, i) => {
+              if (i === index) {
+                newArmy.push(_.cloneDeep(randUnit))
+              }
+              newArmy.push(el)
+            })
+            setter(newArmy)
+            console.log(
+              `${this.UnitName} успешно использует заклинание, чтобы склонировать ${randUnit.UnitName}`
+            )
+          } else {
+            console.log(`${this.UnitName} не совладал со своими чарами...`)
           }
         }
       }
     }
     readonly Range: number
     readonly Strangth: number
-    action: (enemy: IUnitInter[], friendly: IUnitInter[]) => void
+    action: (
+      enemy: IUnitInter[],
+      friendly: IUnitInter[],
+      index: number,
+      setter: (army: IUnitInter[]) => void
+    ) => void
   }
   class GulyayGorodAdapter extends IUnit {
     constructor(unit: GulyayGorodInter) {
@@ -286,7 +345,7 @@ const App = () => {
     }
     unit: GulyayGorodInter
     takeDamage(attackPoints: number): void {
-      this.unit.takeAttack(attackPoints)
+      this.unit.takeAttack.call(this, attackPoints)
     }
   }
 
@@ -362,41 +421,101 @@ const App = () => {
     }
     createArmy: (units: UnitName[]) => IUnitInter[]
   }
-  const army = new ArmyFactory()
-  const [myArmy, setMyArmy] = useState(
-    army.createArmy([
-      "Варвар",
-      "Гоблин",
-      "Колдун",
-      "Лучница",
-      "Целительница",
-      "Гуляй-город",
-    ])
-  )
-  const [enemyArmy, setEnemyArmy] = useState(
-    army.createArmy([
-      "Варвар",
-      "Гоблин",
-      "Колдун",
-      "Лучница",
-      "Целительница",
-      "Гуляй-город",
-    ])
-  )
+  const [activeUnits, setActiveUnits] = useState<UnitName[]>([
+    "Варвар",
+    "Гоблин",
+    "Колдун",
+    "Лучница",
+    "Целительница",
+    "Гуляй-город",
+  ])
+  const [battle, setBattle] = useState<Battle | null>(null)
+  const [activeMove, setActiveMove] = useState(1)
+
+  class Battle implements BattleInter {
+    constructor() {
+      const army = new ArmyFactory()
+      this.blueArmy = army.createArmy(activeUnits)
+      this.redArmy = army.createArmy(activeUnits)
+    }
+    blueArmy: IUnitInter[]
+    redArmy: IUnitInter[]
+    armyAttack(attack: IUnitInter[], defensive: IUnitInter[]): void {
+      defensive[0].takeDamage(attack[0].Attack)
+    }
+    armySpecialAttack(attack: IUnitInter[], defensive: IUnitInter[]): void {
+      attack.forEach((el, index) => {
+        if (index !== 0 && isISpecialAbility(el)) {
+          el.action(defensive, attack, index, (army: IUnitInter[]) => {
+            attack = army
+          })
+        }
+      })
+    }
+    clearField() {
+      this.blueArmy = this.blueArmy.filter((el) => el.HitPoints > 0)
+      this.redArmy = this.redArmy.filter((el) => el.HitPoints > 0)
+    }
+    makeMove(moveIndex: number, updateMove: () => void): Battle {
+      if (moveIndex % 2 === 1) {
+        this.armyAttack(this.blueArmy, this.redArmy)
+        this.armySpecialAttack(this.blueArmy, this.redArmy)
+      } else {
+        this.armyAttack(this.redArmy, this.blueArmy)
+        this.armySpecialAttack(this.redArmy, this.blueArmy)
+      }
+      this.clearField()
+      updateMove()
+      return this
+    }
+  }
 
   return (
-    <div style={{ display: "flex", justifyContent: "space-between" }}>
-      <div>
-        {myArmy.map((el) => (
-          <div>{el.UnitName}</div>
-        ))}
-      </div>
-      <div>
-        {enemyArmy.map((el) => (
-          <div>{el.UnitName}</div>
-        ))}
-      </div>
-    </div>
+    <>
+      {battle ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div>
+              {battle.blueArmy.map((el, index) => (
+                <div key={el.UnitName + index}>
+                  {el.UnitName} {el.HitPoints}
+                </div>
+              ))}
+            </div>
+            <div>Ход: {activeMove}</div>
+            <div>
+              {battle.redArmy.map((el, index) => (
+                <div key={el.UnitName + index}>
+                  {el.UnitName} {el.HitPoints}
+                </div>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              setBattle(
+                _.cloneDeep(
+                  battle.makeMove(activeMove, () => {
+                    setActiveMove(activeMove + 1)
+                  })
+                )
+              )
+            }}
+            disabled={!battle.blueArmy.length || !battle.redArmy.length}
+          >
+            Атаковать
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={async () => {
+            setBattle(new Battle())
+          }}
+        >
+          Создать битву
+        </button>
+      )}
+    </>
   )
 }
 
