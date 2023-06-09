@@ -55,6 +55,8 @@ const App = () => {
       logSetter: (log: string) => void
     ) => void
     clearField: () => void
+  }
+  interface BattleProxyInter {
     makeMove: (
       updateMove: (stage: number) => void,
       logSetter: (log: string) => void,
@@ -213,7 +215,6 @@ const App = () => {
             const random =
               buffVariants[Math.floor(Math.random() * buffVariants.length)]
             randUnit.buff(random)
-
             logSetter(
               `${this.UnitName} надевает ${random} на ${randUnit.UnitName}!`
             )
@@ -240,41 +241,41 @@ const App = () => {
     constructor() {
       super("Варвар", 3, 2, 5)
       this.buffed = null
-      this.buff = (buff) => {
-        if (!this.buffed) {
-          this.buffed = buff
-          switch (buff) {
-            case "Шлем":
-              this.Defense *= 2
-              break
-            case "Щит":
-              this.Defense *= 3
-              break
-            case "Конь":
-              this.Attack *= 2
-              break
-            default:
-              return
-          }
-        }
-      }
     }
     cloneable: true = true
     buffed: buffVariants | null
-    buff: (buff: buffVariants) => void
+    buff(buff: buffVariants): void {
+      if (!this.buffed) {
+        this.buffed = buff
+        switch (buff) {
+          case "Шлем":
+            this.Defense *= 2
+            break
+          case "Щит":
+            this.Defense *= 3
+            break
+          case "Конь":
+            this.Attack *= 2
+            break
+          default:
+            return
+        }
+      }
+    }
   }
   class HeavyIntantryDecorator extends IUnit implements ICloneable, IBuffable {
     constructor(unit: HeavyIntantry) {
       super(unit.UnitName, unit.HitPoints, unit.Attack, unit.Defense)
 
       this.buffed = unit.buffed
-      this.buff = unit.buff
+      this.buff = unit.buff.bind(this)
       this.unit = unit
     }
     unit: HeavyIntantry
     takeDamage(attackPoints: number, logSetter: (log: string) => void): void {
       this.unit.takeDamage.call(this, attackPoints, logSetter)
       if (this.buffed && Math.floor(Math.random() * 2) === 0) {
+        logSetter(`${this.UnitName} теряет бафф...`)
         switch (this.buffed) {
           case "Шлем":
             this.Defense = this.Defense / 2
@@ -551,16 +552,18 @@ const App = () => {
   const [activeUnits, setActiveUnits] = useState<UnitName[]>([
     "Варвар",
     "Гоблин",
-    "Колдун",
-    "Лучница",
-    "Целительница",
-    "Гуляй-город",
-    "П.Е.К.К.А",
+    // "Колдун",
+    // "Лучница",
+    // "Целительница",
+    // "Гуляй-город",
+    // "П.Е.К.К.А",
   ])
   const [battle, setBattle] = useState<Battle | null>(null)
   const [activeMove, setActiveMove] = useState(1)
   const [logger, setLogger] = useState<string[]>([])
   const [history, setHistory] = useState<BattleInter[]>([])
+  const [switchComand, setSwitchComand] = useState<null | Switch>(null)
+  const [isDraw, setIsDraw] = useState(false)
 
   class Battle implements BattleInter {
     constructor() {
@@ -608,24 +611,48 @@ const App = () => {
         }
       })
     }
+  }
+  class BattleProxy implements BattleProxyInter {
+    constructor(battle: BattleInter) {
+      this.battle = battle
+    }
+    battle: BattleInter
     makeMove(
       updateMove: (stage: number) => void,
       logSetter: (log: string) => void,
       historySetter: (history: BattleInter) => void,
       history: BattleInter[]
     ): BattleInter {
-      if (this.activeMove % 2 === 1) {
-        this.armyAttack(this.blueArmy, this.redArmy, logSetter)
-        this.armySpecialAttack(this.blueArmy, this.redArmy, "blue", logSetter)
+      if (this.battle.activeMove % 2 === 1) {
+        this.battle.armyAttack(
+          this.battle.blueArmy,
+          this.battle.redArmy,
+          logSetter
+        )
+        this.battle.armySpecialAttack(
+          this.battle.blueArmy,
+          this.battle.redArmy,
+          "blue",
+          logSetter
+        )
       } else {
-        this.armyAttack(this.redArmy, this.blueArmy, logSetter)
-        this.armySpecialAttack(this.redArmy, this.blueArmy, "red", logSetter)
+        this.battle.armyAttack(
+          this.battle.redArmy,
+          this.battle.blueArmy,
+          logSetter
+        )
+        this.battle.armySpecialAttack(
+          this.battle.redArmy,
+          this.battle.blueArmy,
+          "red",
+          logSetter
+        )
       }
-      this.clearField()
-      this.activeMove += 1
-      updateMove(this.activeMove)
-      historySetter(this)
-      return this
+      this.battle.clearField()
+      this.battle.activeMove += 1
+      updateMove(this.battle.activeMove)
+      historySetter(this.battle)
+      return this.battle
     }
     makeFight(
       updateMove: (stage: number) => void,
@@ -633,10 +660,14 @@ const App = () => {
       historySetter: (history: BattleInter) => void,
       history: BattleInter[]
     ): BattleInter {
-      while (this.blueArmy.length && this.redArmy.length) {
+      while (this.battle.blueArmy.length && this.battle.redArmy.length) {
+        if (this.battle.activeMove > 1000) {
+          setIsDraw(true)
+          break
+        }
         this.makeMove(updateMove, logSetter, historySetter, history)
       }
-      return this
+      return this.battle
     }
     goForward(
       updateMove: (stage: number) => void,
@@ -644,12 +675,12 @@ const App = () => {
       historySetter: (history: BattleInter) => void,
       history: BattleInter[]
     ): BattleInter {
-      if (history.length > this.activeMove) {
-        updateMove(this.activeMove + 1)
-        this.activeMove += 1
-        return _.cloneDeep(history[this.activeMove - 1])
+      if (history.length > this.battle.activeMove) {
+        updateMove(this.battle.activeMove + 1)
+        this.battle.activeMove += 1
+        return _.cloneDeep(history[this.battle.activeMove - 1])
       } else {
-        return this
+        return this.battle
       }
     }
     goBack(
@@ -658,27 +689,27 @@ const App = () => {
       historySetter: (history: BattleInter) => void,
       history: BattleInter[]
     ): BattleInter {
-      if (this.activeMove > 1) {
-        updateMove(this.activeMove - 1)
-        this.activeMove -= 1
-        return _.cloneDeep(history[this.activeMove - 1])
+      if (this.battle.activeMove > 1) {
+        updateMove(this.battle.activeMove - 1)
+        this.battle.activeMove -= 1
+        return _.cloneDeep(history[this.battle.activeMove - 1])
       } else {
-        return this
+        return this.battle
       }
     }
   }
   abstract class Command {
-    constructor(battle: BattleInter) {
+    constructor(battle: BattleProxyInter) {
       this.battle = battle
     }
-    battle: BattleInter
+    battle: BattleProxyInter
     operate(
       updateMove: (stage: number) => void,
       logSetter: (log: string) => void,
       historySetter: (history: BattleInter) => void,
       history: BattleInter[]
     ): BattleInter {
-      return this.battle
+      return new Battle()
     }
   }
   class MakeMove extends Command {
@@ -771,7 +802,7 @@ const App = () => {
       return res
     }
   }
-  const [switchComand, setSwitchComand] = useState<null | Switch>(null)
+
   console.log(switchComand?.history)
 
   return (
@@ -782,7 +813,7 @@ const App = () => {
             <div>
               {battle.blueArmy.map((el, index) => (
                 <div key={el.UnitName + index}>
-                  {el.UnitName} {el.HitPoints}
+                  {el.UnitName} {el.HitPoints} {el.Attack} {el.Defense}
                 </div>
               ))}
             </div>
@@ -790,14 +821,15 @@ const App = () => {
             <div>
               {battle.redArmy.map((el, index) => (
                 <div key={el.UnitName + index}>
-                  {el.UnitName} {el.HitPoints}
+                  {el.UnitName} {el.HitPoints} {el.Attack} {el.Defense}
                 </div>
               ))}
             </div>
           </div>
           <button
-            onClick={async () => {
-              const action = new GoBack(battle)
+            onClick={() => {
+              const proxy = new BattleProxy(battle)
+              const action = new GoBack(proxy)
               setBattle(
                 _.cloneDeep(
                   switchComand.switchExecute(action, (move: number) => {
@@ -806,13 +838,14 @@ const App = () => {
                 )
               )
             }}
-            disabled={activeMove === 1}
+            disabled={isDraw || activeMove === 1}
           >
             Назад
           </button>
           <button
-            onClick={async () => {
-              const action = new GoForward(battle)
+            onClick={() => {
+              const proxy = new BattleProxy(battle)
+              const action = new GoForward(proxy)
               setBattle(
                 _.cloneDeep(
                   switchComand.switchExecute(action, (move: number) => {
@@ -822,6 +855,7 @@ const App = () => {
               )
             }}
             disabled={
+              isDraw ||
               !battle.blueArmy.length ||
               !battle.redArmy.length ||
               activeMove === history.length
@@ -830,8 +864,9 @@ const App = () => {
             Вперед
           </button>
           <button
-            onClick={async () => {
-              const action = new MakeMove(battle)
+            onClick={() => {
+              const proxy = new BattleProxy(battle)
+              const action = new MakeMove(proxy)
               setBattle(
                 _.cloneDeep(
                   switchComand.switchExecute(action, (move: number) => {
@@ -841,6 +876,7 @@ const App = () => {
               )
             }}
             disabled={
+              isDraw ||
               !battle.blueArmy.length ||
               !battle.redArmy.length ||
               activeMove !== history.length
@@ -849,8 +885,9 @@ const App = () => {
             Атаковать
           </button>
           <button
-            onClick={async () => {
-              const action = new MakeFight(battle)
+            onClick={() => {
+              const proxy = new BattleProxy(battle)
+              const action = new MakeFight(proxy)
               setBattle(
                 _.cloneDeep(
                   switchComand.switchExecute(action, (move: number) => {
@@ -860,6 +897,7 @@ const App = () => {
               )
             }}
             disabled={
+              isDraw ||
               !battle.blueArmy.length ||
               !battle.redArmy.length ||
               activeMove !== history.length
@@ -867,19 +905,34 @@ const App = () => {
           >
             До победы
           </button>
+          <button
+            onClick={() => {
+              setBattle(null)
+              setHistory([])
+              setSwitchComand(null)
+              setIsDraw(false)
+              setLogger([])
+              setActiveMove(1)
+            }}
+          >
+            Выйти в главное меню
+          </button>
         </>
       ) : (
-        <button
-          onClick={async () => {
-            const battle = new Battle()
-            setBattle(battle)
-            setHistory([battle])
-            setSwitchComand(new Switch(battle))
-          }}
-        >
-          Создать битву
-        </button>
+        <div className="wrapper">
+          <button
+            onClick={() => {
+              const battle = new Battle()
+              setBattle(battle)
+              setHistory([battle])
+              setSwitchComand(new Switch(battle))
+            }}
+          >
+            Создать битву
+          </button>
+        </div>
       )}
+      {isDraw && <div>К сожалению у вас ничья</div>}
       {logger.map((el) => (
         <div>{el}</div>
       ))}
