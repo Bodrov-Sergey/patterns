@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useState } from "react"
 import _ from "lodash"
 
 const App = () => {
@@ -8,12 +8,12 @@ const App = () => {
     Defense: number
     HitPoints: number
     UnitName: string
-    takeDamage: (attackPoints: number) => void
+    takeDamage: (attackPoints: number, logSetter: (log: string) => void) => void
   }
   interface GulyayGorodInter {
     HitPoints: number
     UnitName: string
-    takeAttack: (attackPoints: number) => void
+    takeAttack: (attackPoints: number, logSetter: (log: string) => void) => void
   }
   interface ISpecialAbility {
     Range: number
@@ -22,12 +22,13 @@ const App = () => {
       enemy: IUnitInter[],
       friendly: IUnitInter[],
       index: number,
-      setter: (army: IUnitInter[]) => void
+      setter: (army: IUnitInter[]) => void,
+      logSetter: (log: string) => void
     ) => void
   }
   interface IHealable {
     MaxHp: number
-    heal: (heal: number) => void
+    heal: (heal: number, logSetter: (log: string) => void) => void
   }
   type buffVariants = "Шлем" | "Щит" | "Конь"
   interface IBuffable {
@@ -41,10 +42,43 @@ const App = () => {
   interface BattleInter {
     blueArmy: IUnitInter[]
     redArmy: IUnitInter[]
-    armyAttack: (attack: IUnitInter[], defensive: IUnitInter[]) => void
-    armySpecialAttack: (attack: IUnitInter[], defensive: IUnitInter[]) => void
+    activeMove: number
+    armyAttack: (
+      attack: IUnitInter[],
+      defensive: IUnitInter[],
+      logSetter: (log: string) => void
+    ) => void
+    armySpecialAttack: (
+      attack: IUnitInter[],
+      defensive: IUnitInter[],
+      toClone: "blue" | "red",
+      logSetter: (log: string) => void
+    ) => void
     clearField: () => void
-    makeMove: (move: number, updateMove: () => void) => BattleInter
+    makeMove: (
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ) => BattleInter
+    makeFight: (
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ) => BattleInter
+    goForward: (
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ) => BattleInter
+    goBack: (
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ) => BattleInter
   }
 
   // HELPERS
@@ -53,22 +87,33 @@ const App = () => {
     friendly: IUnitInter[],
     index: number,
     sar: number
-  ) => {}
-  const healAction = (healpoint: number, context: IUnitInter & IHealable) => {
+  ) => {
+    return {
+      avaliableEnemy: enemy.filter((el, i) => i <= sar - index - 1),
+      avaliableFriendly: friendly.filter(
+        (el, i) => i >= index - sar && i <= index + sar && i !== index
+      ),
+    }
+  }
+  const healAction = (
+    healpoint: number,
+    context: IUnitInter & IHealable,
+    logSetter: (log: string) => void
+  ) => {
     if (context.HitPoints > 0) {
       if (context.HitPoints + healpoint > context.MaxHp) {
         context.HitPoints = context.MaxHp
-        console.log(
+        logSetter(
           `Целительница полностью восстанавливает здоровье у ${context.UnitName}`
         )
       } else {
         context.HitPoints += healpoint
-        console.log(
+        logSetter(
           `Целительница восстанавливает ${healpoint} единиц здоровья у ${context.UnitName}`
         )
       }
     } else {
-      console.log(
+      logSetter(
         `Целительница пытается вылечить уже мёртвого ${context.UnitName}`
       )
     }
@@ -94,21 +139,21 @@ const App = () => {
     constructor(
       UnitName: string,
       HitPoints: number,
-      Attack?: number,
-      Defense?: number
+      Attack: number,
+      Defense: number
     ) {
       this.UnitName = UnitName
       this.HitPoints = HitPoints
-      this.Attack = Attack || 0
-      this.Defense = Defense || 0
+      this.Attack = Attack
+      this.Defense = Defense
     }
     Attack: number
     Defense: number
     HitPoints: number
     readonly UnitName: string
 
-    takeDamage(attackPoints: number) {
-      console.log(
+    takeDamage(attackPoints: number, logSetter: (log: string) => void) {
+      logSetter(
         `${this.UnitName} получает ${
           attackPoints * (armyPrice / (armyPrice + this.Defense))
         } урона ${
@@ -119,6 +164,7 @@ const App = () => {
             : ""
         }`
       )
+
       this.HitPoints =
         this.HitPoints - attackPoints * (armyPrice / (armyPrice + this.Defense))
     }
@@ -130,8 +176,8 @@ const App = () => {
     }
     HitPoints: number
     readonly UnitName: string
-    takeAttack(attackPoints: number) {
-      console.log(
+    takeAttack(attackPoints: number, logSetter: (log: string) => void) {
+      logSetter(
         `${this.UnitName} поглащает ${attackPoints} урона ${
           this.HitPoints - attackPoints <= 0 ? "и разрушается" : ""
         }`
@@ -145,14 +191,20 @@ const App = () => {
     constructor() {
       super("Гоблин", 6, 3, 1)
       this.MaxHp = 6
-      this.heal = (heal) => {
-        healAction(heal, this)
+      this.heal = (heal, logSetter) => {
+        healAction(heal, this, logSetter)
       }
       this.Range = 1
       this.Strangth = 10
-      this.action = (enemy, friendly, index) => {
-        if (friendly.length) {
-          const randUnit = getRandUnit(friendly)
+      this.action = (enemy, friendly, index, setter, logSetter) => {
+        const { avaliableFriendly } = getAvaliable(
+          enemy,
+          friendly,
+          index,
+          this.Range
+        )
+        if (avaliableFriendly.length) {
+          const randUnit = getRandUnit(avaliableFriendly)
           if (
             Math.floor(Math.random() * 100 + 1) <= this.Strangth &&
             isIBuffable(randUnit)
@@ -161,11 +213,12 @@ const App = () => {
             const random =
               buffVariants[Math.floor(Math.random() * buffVariants.length)]
             randUnit.buff(random)
-            console.log(
+
+            logSetter(
               `${this.UnitName} надевает ${random} на ${randUnit.UnitName}!`
             )
           } else {
-            console.log(`${this.UnitName} не находит союзника для бафа...`)
+            logSetter(`${this.UnitName} не находит союзника для бафа...`)
           }
         }
       }
@@ -176,10 +229,11 @@ const App = () => {
       enemy: IUnitInter[],
       friendly: IUnitInter[],
       index: number,
-      setter: (army: IUnitInter[]) => void
+      setter: (army: IUnitInter[]) => void,
+      logSetter: (log: string) => void
     ) => void
     readonly MaxHp: number
-    heal: (heal: number) => void
+    heal: (heal: number, logSetter: (log: string) => void) => void
   }
 
   class HeavyIntantry extends IUnit implements ICloneable, IBuffable {
@@ -218,8 +272,8 @@ const App = () => {
       this.unit = unit
     }
     unit: HeavyIntantry
-    takeDamage(attackPoints: number): void {
-      this.unit.takeDamage.call(this, attackPoints)
+    takeDamage(attackPoints: number, logSetter: (log: string) => void): void {
+      this.unit.takeDamage.call(this, attackPoints, logSetter)
       if (this.buffed && Math.floor(Math.random() * 2) === 0) {
         switch (this.buffed) {
           case "Шлем":
@@ -252,18 +306,25 @@ const App = () => {
       super("Лучница", 6, 3, 1)
       this.Range = 2
       this.Strangth = 3
-      this.action = (enemy, friendly, index) => {
-        if (enemy.length) {
-          const randUnit = getRandUnit(enemy)
-          console.log(`${this.UnitName} стреляет!`)
-          randUnit.takeDamage(this.Strangth)
+      this.action = (enemy, friendly, index, setter, logSetter) => {
+        const { avaliableEnemy } = getAvaliable(
+          enemy,
+          friendly,
+          index,
+          this.Range
+        )
+        if (avaliableEnemy.length) {
+          const randUnit = getRandUnit(avaliableEnemy)
+
+          logSetter(`${this.UnitName} стреляет!`)
+          randUnit.takeDamage(this.Strangth, logSetter)
         } else {
-          console.log(`${this.UnitName} не смогла прицелиться...`)
+          logSetter(`${this.UnitName} не смогла прицелиться...`)
         }
       }
       this.MaxHp = 6
-      this.heal = (heal) => {
-        healAction(heal, this)
+      this.heal = (heal, logSetter) => {
+        healAction(heal, this, logSetter)
       }
     }
     readonly Range: number
@@ -272,27 +333,34 @@ const App = () => {
       enemy: IUnitInter[],
       friendly: IUnitInter[],
       index: number,
-      setter: (army: IUnitInter[]) => void
+      setter: (army: IUnitInter[]) => void,
+      logSetter: (log: string) => void
     ) => void
     readonly MaxHp: number
-    heal: (heal: number) => void
+    heal: (heal: number, logSetter: (log: string) => void) => void
   }
   class Healer extends IUnit implements ISpecialAbility, IHealable {
     constructor() {
       super("Целительница", 6, 3, 1)
       this.Range = 2
       this.Strangth = 3
-      this.action = (enemy, friendly, index) => {
-        if (friendly.length) {
-          const randUnit = getRandUnit(friendly)
+      this.action = (enemy, friendly, index, setter, logSetter) => {
+        const { avaliableFriendly } = getAvaliable(
+          enemy,
+          friendly,
+          index,
+          this.Range
+        )
+        if (avaliableFriendly.length) {
+          const randUnit = getRandUnit(avaliableFriendly)
           if (isIHealable(randUnit)) {
-            randUnit.heal(this.Strangth)
+            randUnit.heal(this.Strangth, logSetter)
           }
         }
       }
       this.MaxHp = 6
-      this.heal = (heal) => {
-        healAction(heal, this)
+      this.heal = (heal, logSetter) => {
+        healAction(heal, this, logSetter)
       }
     }
     readonly Range: number
@@ -301,19 +369,26 @@ const App = () => {
       enemy: IUnitInter[],
       friendly: IUnitInter[],
       index: number,
-      setter: (army: IUnitInter[]) => void
+      setter: (army: IUnitInter[]) => void,
+      logSetter: (log: string) => void
     ) => void
     readonly MaxHp: number
-    heal: (heal: number) => void
+    heal: (heal: number, logSetter: (log: string) => void) => void
   }
   class Warlock extends IUnit implements ISpecialAbility {
     constructor() {
       super("Колдун", 6, 3, 1)
       this.Range = 2
       this.Strangth = 3
-      this.action = (enemy, friendly, index, setter) => {
-        if (friendly.length) {
-          const randUnit = getRandUnit(friendly)
+      this.action = (enemy, friendly, index, setter, logSetter) => {
+        const { avaliableFriendly } = getAvaliable(
+          enemy,
+          friendly,
+          index,
+          this.Range
+        )
+        if (avaliableFriendly.length) {
+          const randUnit = getRandUnit(avaliableFriendly)
           if (
             isICloneable(randUnit) &&
             Math.floor(Math.random() * 100 + 1) <= this.Strangth
@@ -326,11 +401,12 @@ const App = () => {
               newArmy.push(el)
             })
             setter(newArmy)
-            console.log(
+
+            logSetter(
               `${this.UnitName} успешно использует заклинание, чтобы склонировать ${randUnit.UnitName}`
             )
           } else {
-            console.log(`${this.UnitName} не совладал со своими чарами...`)
+            logSetter(`${this.UnitName} не совладал со своими чарами...`)
           }
         }
       }
@@ -341,7 +417,8 @@ const App = () => {
       enemy: IUnitInter[],
       friendly: IUnitInter[],
       index: number,
-      setter: (army: IUnitInter[]) => void
+      setter: (army: IUnitInter[]) => void,
+      logSetter: (log: string) => void
     ) => void
   }
   class GulyayGorodAdapter extends IUnit {
@@ -350,8 +427,8 @@ const App = () => {
       this.unit = unit
     }
     unit: GulyayGorodInter
-    takeDamage(attackPoints: number): void {
-      this.unit.takeAttack.call(this, attackPoints)
+    takeDamage(attackPoints: number, logSetter: (log: string) => void): void {
+      this.unit.takeAttack.call(this, attackPoints, logSetter)
     }
   }
 
@@ -482,48 +559,224 @@ const App = () => {
   ])
   const [battle, setBattle] = useState<Battle | null>(null)
   const [activeMove, setActiveMove] = useState(1)
+  const [logger, setLogger] = useState<string[]>([])
+  const [history, setHistory] = useState<BattleInter[]>([])
 
   class Battle implements BattleInter {
     constructor() {
       const army = new ArmyCreate()
       this.blueArmy = army.createArmy(activeUnits)
       this.redArmy = army.createArmy(activeUnits)
+      this.activeMove = 1
     }
+    activeMove: number
     blueArmy: IUnitInter[]
     redArmy: IUnitInter[]
-    armyAttack(attack: IUnitInter[], defensive: IUnitInter[]): void {
-      defensive[0].takeDamage(attack[0].Attack)
-    }
-    armySpecialAttack(attack: IUnitInter[], defensive: IUnitInter[]): void {
-      attack.forEach((el, index) => {
-        if (index !== 0 && isISpecialAbility(el)) {
-          el.action(defensive, attack, index, (army: IUnitInter[]) => {
-            attack = army
-          })
-        }
-      })
-    }
+
     clearField() {
       this.blueArmy = this.blueArmy.filter((el) => el.HitPoints > 0)
       this.redArmy = this.redArmy.filter((el) => el.HitPoints > 0)
     }
-    makeMove(moveIndex: number, updateMove: () => void): Battle {
-      if (moveIndex % 2 === 1) {
-        this.armyAttack(this.blueArmy, this.redArmy)
-        this.armySpecialAttack(this.blueArmy, this.redArmy)
+    armyAttack(
+      attack: IUnitInter[],
+      defensive: IUnitInter[],
+      logSetter: (log: string) => void
+    ): void {
+      defensive[0].takeDamage(attack[0].Attack, logSetter)
+    }
+    armySpecialAttack(
+      attack: IUnitInter[],
+      defensive: IUnitInter[],
+      toClone: "blue" | "red",
+      logSetter: (log: string) => void
+    ): void {
+      attack.forEach((el, index) => {
+        if (index !== 0 && isISpecialAbility(el)) {
+          el.action(
+            defensive,
+            attack,
+            index,
+            (army: IUnitInter[]) => {
+              if (toClone === "red") {
+                this.redArmy = _.cloneDeep(army)
+              } else {
+                this.blueArmy = _.cloneDeep(army)
+              }
+            },
+            logSetter
+          )
+        }
+      })
+    }
+    makeMove(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      if (this.activeMove % 2 === 1) {
+        this.armyAttack(this.blueArmy, this.redArmy, logSetter)
+        this.armySpecialAttack(this.blueArmy, this.redArmy, "blue", logSetter)
       } else {
-        this.armyAttack(this.redArmy, this.blueArmy)
-        this.armySpecialAttack(this.redArmy, this.blueArmy)
+        this.armyAttack(this.redArmy, this.blueArmy, logSetter)
+        this.armySpecialAttack(this.redArmy, this.blueArmy, "red", logSetter)
       }
       this.clearField()
-      updateMove()
+      this.activeMove += 1
+      updateMove(this.activeMove)
+      historySetter(this)
       return this
     }
+    makeFight(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      while (this.blueArmy.length && this.redArmy.length) {
+        this.makeMove(updateMove, logSetter, historySetter, history)
+      }
+      return this
+    }
+    goForward(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      if (history.length > this.activeMove) {
+        updateMove(this.activeMove + 1)
+        this.activeMove += 1
+        return _.cloneDeep(history[this.activeMove - 1])
+      } else {
+        return this
+      }
+    }
+    goBack(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      if (this.activeMove > 1) {
+        updateMove(this.activeMove - 1)
+        this.activeMove -= 1
+        return _.cloneDeep(history[this.activeMove - 1])
+      } else {
+        return this
+      }
+    }
   }
+  abstract class Command {
+    constructor(battle: BattleInter) {
+      this.battle = battle
+    }
+    battle: BattleInter
+    operate(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      return this.battle
+    }
+  }
+  class MakeMove extends Command {
+    operate(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      return this.battle.makeMove.call(
+        this.battle,
+        updateMove,
+        logSetter,
+        historySetter,
+        history
+      )
+    }
+  }
+  class MakeFight extends Command {
+    operate(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      return this.battle.makeFight.call(
+        this.battle,
+        updateMove,
+        logSetter,
+        historySetter,
+        history
+      )
+    }
+  }
+  class GoBack extends Command {
+    operate(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      return this.battle.goBack.call(
+        this.battle,
+        updateMove,
+        logSetter,
+        historySetter,
+        history
+      )
+    }
+  }
+  class GoForward extends Command {
+    operate(
+      updateMove: (stage: number) => void,
+      logSetter: (log: string) => void,
+      historySetter: (history: BattleInter) => void,
+      history: BattleInter[]
+    ): BattleInter {
+      return this.battle.goForward.call(
+        this.battle,
+        updateMove,
+        logSetter,
+        historySetter,
+        history
+      )
+    }
+  }
+  class Switch {
+    constructor(battle: BattleInter) {
+      this.history = [_.cloneDeep(battle)]
+      this.log = []
+    }
+    history: BattleInter[]
+    log: string[]
+    switchExecute(
+      comand: Command,
+      updateMove: (stage: number) => void
+    ): BattleInter {
+      const res = comand.operate(
+        updateMove,
+        (log) => {
+          this.log = [...this.log, log]
+        },
+        (history) => {
+          this.history = [...this.history, _.cloneDeep(history)]
+        },
+        this.history
+      )
+      setLogger(_.clone(this.log))
+      setHistory(_.cloneDeep(this.history))
+      return res
+    }
+  }
+  const [switchComand, setSwitchComand] = useState<null | Switch>(null)
+  console.log(switchComand?.history)
 
   return (
     <>
-      {battle ? (
+      {battle && switchComand ? (
         <>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <div>
@@ -544,28 +797,92 @@ const App = () => {
           </div>
           <button
             onClick={async () => {
+              const action = new GoBack(battle)
               setBattle(
                 _.cloneDeep(
-                  battle.makeMove(activeMove, () => {
-                    setActiveMove(activeMove + 1)
+                  switchComand.switchExecute(action, (move: number) => {
+                    setActiveMove(move)
                   })
                 )
               )
             }}
-            disabled={!battle.blueArmy.length || !battle.redArmy.length}
+            disabled={activeMove === 1}
+          >
+            Назад
+          </button>
+          <button
+            onClick={async () => {
+              const action = new GoForward(battle)
+              setBattle(
+                _.cloneDeep(
+                  switchComand.switchExecute(action, (move: number) => {
+                    setActiveMove(move)
+                  })
+                )
+              )
+            }}
+            disabled={
+              !battle.blueArmy.length ||
+              !battle.redArmy.length ||
+              activeMove === history.length
+            }
+          >
+            Вперед
+          </button>
+          <button
+            onClick={async () => {
+              const action = new MakeMove(battle)
+              setBattle(
+                _.cloneDeep(
+                  switchComand.switchExecute(action, (move: number) => {
+                    setActiveMove(move)
+                  })
+                )
+              )
+            }}
+            disabled={
+              !battle.blueArmy.length ||
+              !battle.redArmy.length ||
+              activeMove !== history.length
+            }
           >
             Атаковать
+          </button>
+          <button
+            onClick={async () => {
+              const action = new MakeFight(battle)
+              setBattle(
+                _.cloneDeep(
+                  switchComand.switchExecute(action, (move: number) => {
+                    setActiveMove(move)
+                  })
+                )
+              )
+            }}
+            disabled={
+              !battle.blueArmy.length ||
+              !battle.redArmy.length ||
+              activeMove !== history.length
+            }
+          >
+            До победы
           </button>
         </>
       ) : (
         <button
           onClick={async () => {
-            setBattle(new Battle())
+            const battle = new Battle()
+            setBattle(battle)
+            setHistory([battle])
+            setSwitchComand(new Switch(battle))
           }}
         >
           Создать битву
         </button>
       )}
+      {logger.map((el) => (
+        <div>{el}</div>
+      ))}
     </>
   )
 }
