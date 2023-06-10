@@ -1,4 +1,5 @@
 import React, { useState } from "react"
+import "./App.scss"
 import _ from "lodash"
 
 const App = () => {
@@ -38,6 +39,14 @@ const App = () => {
   interface ICloneable {
     cloneable: true
   }
+  type UnitName =
+    | "Гоблин"
+    | "Варвар"
+    | "П.Е.К.К.А"
+    | "Гуляй-город"
+    | "Лучница"
+    | "Целительница"
+    | "Колдун"
 
   interface BattleInter {
     blueArmy: IUnitInter[]
@@ -436,14 +445,6 @@ const App = () => {
   // ARMY
 
   const armyPrice = 100 // ТУТ ДОЛЖЕН БЫТЬ МИНИМУМ - НЕ ЗАБУДЬ ЕСЛИ БУДЕТ ЮАЙ
-  type UnitName =
-    | "Гоблин"
-    | "Варвар"
-    | "П.Е.К.К.А"
-    | "Гуляй-город"
-    | "Лучница"
-    | "Целительница"
-    | "Колдун"
 
   abstract class AbstractFactory {
     createUnit(): void {}
@@ -552,11 +553,11 @@ const App = () => {
   const [activeUnits, setActiveUnits] = useState<UnitName[]>([
     "Варвар",
     "Гоблин",
-    // "Колдун",
-    // "Лучница",
-    // "Целительница",
-    // "Гуляй-город",
-    // "П.Е.К.К.А",
+    "Колдун",
+    "Лучница",
+    "Целительница",
+    "Гуляй-город",
+    "П.Е.К.К.А",
   ])
   const [battle, setBattle] = useState<Battle | null>(null)
   const [activeMove, setActiveMove] = useState(1)
@@ -804,138 +805,256 @@ const App = () => {
   }
 
   console.log(switchComand?.history)
+  const gg = new GulyayGorod()
+  const unitData: {
+    name: UnitName
+    image: string
+    unit: (IUnitInter & ISpecialAbility) | IUnitInter
+  }[] = [
+    {
+      name: "Варвар",
+      image: "Barbarian_info.webp",
+      unit: new HeavyIntantry(),
+    },
+    {
+      name: "Гоблин",
+      image: "Goblin_info.webp",
+      unit: new LightIntantry(),
+    },
+    {
+      name: "Лучница",
+      image: "Archer_info.webp",
+      unit: new Archer(),
+    },
+    {
+      name: "Целительница",
+      image: "Healer_info.webp",
+      unit: new Healer(),
+    },
+    {
+      name: "Колдун",
+      image: "Wizard_info.webp",
+      unit: new Warlock(),
+    },
+    {
+      name: "П.Е.К.К.А",
+      image: "P.E.K.K.A_info.webp",
+      unit: new Knight(),
+    },
+    {
+      name: "Гуляй-город",
+      image: "Wall1.webp",
+      unit: new GulyayGorodAdapter(gg),
+    },
+  ]
 
   return (
     <>
-      {battle && switchComand ? (
-        <>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <div>
-              {battle.blueArmy.map((el, index) => (
-                <div key={el.UnitName + index}>
-                  {el.UnitName} {el.HitPoints} {el.Attack} {el.Defense}
-                </div>
-              ))}
-            </div>
-            <div>Ход: {activeMove}</div>
-            <div>
-              {battle.redArmy.map((el, index) => (
-                <div key={el.UnitName + index}>
-                  {el.UnitName} {el.HitPoints} {el.Attack} {el.Defense}
-                </div>
-              ))}
-            </div>
+      <div className="wrapper">
+        <header className="header">
+          <div className="container">
+            <h1>Смертельная битва</h1>
           </div>
-          <button
-            onClick={() => {
-              const proxy = new BattleProxy(battle)
-              const action = new GoBack(proxy)
-              setBattle(
-                _.cloneDeep(
-                  switchComand.switchExecute(action, (move: number) => {
-                    setActiveMove(move)
-                  })
-                )
-              )
-            }}
-            disabled={isDraw || activeMove === 1}
-          >
-            Назад
-          </button>
-          <button
-            onClick={() => {
-              const proxy = new BattleProxy(battle)
-              const action = new GoForward(proxy)
-              setBattle(
-                _.cloneDeep(
-                  switchComand.switchExecute(action, (move: number) => {
-                    setActiveMove(move)
-                  })
-                )
-              )
-            }}
-            disabled={
-              isDraw ||
-              !battle.blueArmy.length ||
-              !battle.redArmy.length ||
-              activeMove === history.length
-            }
-          >
-            Вперед
-          </button>
-          <button
-            onClick={() => {
-              const proxy = new BattleProxy(battle)
-              const action = new MakeMove(proxy)
-              setBattle(
-                _.cloneDeep(
-                  switchComand.switchExecute(action, (move: number) => {
-                    setActiveMove(move)
-                  })
-                )
-              )
-            }}
-            disabled={
-              isDraw ||
-              !battle.blueArmy.length ||
-              !battle.redArmy.length ||
-              activeMove !== history.length
-            }
-          >
-            Атаковать
-          </button>
-          <button
-            onClick={() => {
-              const proxy = new BattleProxy(battle)
-              const action = new MakeFight(proxy)
-              setBattle(
-                _.cloneDeep(
-                  switchComand.switchExecute(action, (move: number) => {
-                    setActiveMove(move)
-                  })
-                )
-              )
-            }}
-            disabled={
-              isDraw ||
-              !battle.blueArmy.length ||
-              !battle.redArmy.length ||
-              activeMove !== history.length
-            }
-          >
-            До победы
-          </button>
-          <button
-            onClick={() => {
-              setBattle(null)
-              setHistory([])
-              setSwitchComand(null)
-              setIsDraw(false)
-              setLogger([])
-              setActiveMove(1)
-            }}
-          >
-            Выйти в главное меню
-          </button>
-        </>
-      ) : (
-        <div className="wrapper">
-          <button
-            onClick={() => {
-              const battle = new Battle()
-              setBattle(battle)
-              setHistory([battle])
-              setSwitchComand(new Switch(battle))
-            }}
-          >
-            Создать битву
-          </button>
+        </header>
+        <div className="container">
+          {battle && switchComand ? (
+            <>
+              <div className="controlls">
+                <button
+                  onClick={() => {
+                    const proxy = new BattleProxy(battle)
+                    const action = new GoBack(proxy)
+                    setBattle(
+                      _.cloneDeep(
+                        switchComand.switchExecute(action, (move: number) => {
+                          setActiveMove(move)
+                        })
+                      )
+                    )
+                  }}
+                  disabled={isDraw || activeMove === 1}
+                >
+                  Назад
+                </button>
+                <button
+                  onClick={() => {
+                    const proxy = new BattleProxy(battle)
+                    const action = new GoForward(proxy)
+                    setBattle(
+                      _.cloneDeep(
+                        switchComand.switchExecute(action, (move: number) => {
+                          setActiveMove(move)
+                        })
+                      )
+                    )
+                  }}
+                  disabled={
+                    isDraw ||
+                    !battle.blueArmy.length ||
+                    !battle.redArmy.length ||
+                    activeMove === history.length
+                  }
+                >
+                  Вперед
+                </button>
+                <button
+                  onClick={() => {
+                    const proxy = new BattleProxy(battle)
+                    const action = new MakeMove(proxy)
+                    setBattle(
+                      _.cloneDeep(
+                        switchComand.switchExecute(action, (move: number) => {
+                          setActiveMove(move)
+                        })
+                      )
+                    )
+                  }}
+                  disabled={
+                    isDraw ||
+                    !battle.blueArmy.length ||
+                    !battle.redArmy.length ||
+                    activeMove !== history.length
+                  }
+                >
+                  Атаковать
+                </button>
+                <button
+                  onClick={() => {
+                    const proxy = new BattleProxy(battle)
+                    const action = new MakeFight(proxy)
+                    setBattle(
+                      _.cloneDeep(
+                        switchComand.switchExecute(action, (move: number) => {
+                          setActiveMove(move)
+                        })
+                      )
+                    )
+                  }}
+                  disabled={
+                    isDraw ||
+                    !battle.blueArmy.length ||
+                    !battle.redArmy.length ||
+                    activeMove !== history.length
+                  }
+                >
+                  До победы
+                </button>
+                <button
+                  onClick={() => {
+                    setBattle(null)
+                    setHistory([])
+                    setSwitchComand(null)
+                    setIsDraw(false)
+                    setLogger([])
+                    setActiveMove(1)
+                  }}
+                >
+                  Выйти в главное меню
+                </button>
+              </div>
+              <div className="battle_wrapper">
+                <div className="team">
+                  <h3 className="team_name blue">
+                    Команда <span>синих</span>
+                  </h3>
+                  {battle.blueArmy.map((el, index) => (
+                    <div key={el.UnitName + index}>
+                      {el.UnitName} {el.HitPoints} {el.Attack} {el.Defense}
+                    </div>
+                  ))}
+                </div>
+                <div className="move">Ход: {activeMove}</div>
+                <div className="team">
+                  <h3 className="team_name red">
+                    Команда <span>красных</span>
+                  </h3>
+                  {battle.redArmy.map((el, index) => (
+                    <div key={el.UnitName + index}>
+                      {el.UnitName} {el.HitPoints} {el.Attack} {el.Defense}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {isDraw && <div>К сожалению у вас ничья</div>}
+              {logger.map((el) => (
+                <div>{el}</div>
+              ))}
+            </>
+          ) : (
+            <>
+              <div className="info">
+                <h2 className="title">Команда: Джаваскриптизеры</h2>
+                <div className="students">
+                  <div className="student">Сергей Бодров</div>
+                  <div className="student">Максим Шкураток</div>
+                  <div className="student">Джоэл Касиси</div>
+                </div>
+              </div>
+              <h2 className="title">Выберите юнитов для битвы</h2>
+              <div className="units">
+                {unitData.map((el) => (
+                  <div className="unit" key={el.name}>
+                    <div className="image">
+                      <img src={el.image} alt={el.name} />
+                    </div>
+                    <div className="name">{el.name}</div>
+                    <div className="skills">Здоровье: {el.unit.HitPoints}</div>
+                    <div className="skills">Атака: {el.unit.Attack}</div>
+                    <div className="skills">Защита: {el.unit.Defense}</div>
+                    {isISpecialAbility(el.unit) ? (
+                      <div className="skills">Имеет секретную способность</div>
+                    ) : (
+                      <div className="skills"></div>
+                    )}
+                    <div className="skills">
+                      Цена:{" "}
+                      {el.unit.Attack +
+                        el.unit.Defense +
+                        el.unit.HitPoints +
+                        (isISpecialAbility(el.unit)
+                          ? (el.unit.Range + el.unit.Strangth) * 2
+                          : 0)}
+                    </div>
+
+                    <div className="input">
+                      <input
+                        type="checkbox"
+                        disabled={
+                          activeUnits.includes(el.name) &&
+                          activeUnits.length === 1
+                        }
+                        checked={activeUnits.includes(el.name)}
+                        onClick={() => {
+                          if (activeUnits.includes(el.name)) {
+                            setActiveUnits(
+                              activeUnits.filter((unit) => unit !== el.name)
+                            )
+                          } else {
+                            setActiveUnits([...activeUnits, el.name])
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="controlls">
+                <button
+                  onClick={() => {
+                    const battle = new Battle()
+                    setBattle(battle)
+                    setHistory([battle])
+                    setSwitchComand(new Switch(battle))
+                  }}
+                >
+                  Создать битву
+                </button>
+              </div>
+            </>
+          )}
         </div>
-      )}
-      {isDraw && <div>К сожалению у вас ничья</div>}
-      {logger.map((el) => (
-        <div>{el}</div>
-      ))}
+      </div>
     </>
   )
 }
