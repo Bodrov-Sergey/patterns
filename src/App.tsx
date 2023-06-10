@@ -1,8 +1,22 @@
-import React, { useState } from "react"
+import React, {useEffect,useState } from "react"
 import "./App.scss"
 import _ from "lodash"
 
 const App = () => {
+
+  useEffect(() => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: "smooth",
+    });
+  }, []);
+
+  const loggsDiv = document.querySelector(".loggs");
+  if (loggsDiv) {
+    loggsDiv.addEventListener("DOMNodeInserted", () => {
+      loggsDiv.scrollTop = loggsDiv.scrollHeight;
+    });
+  }
   // INTERFACES
   interface IUnitInter {
     Attack: number
@@ -859,8 +873,8 @@ const App = () => {
         <div className="container">
           {battle && switchComand ? (
             <>
-              <div className="controlls">
-                <button
+              <div className="controlls" >
+                <button className="main_btn"
                   onClick={() => {
                     const proxy = new BattleProxy(battle)
                     const action = new GoBack(proxy)
@@ -876,7 +890,7 @@ const App = () => {
                 >
                   Назад
                 </button>
-                <button
+                <button className="main_btn"
                   onClick={() => {
                     const proxy = new BattleProxy(battle)
                     const action = new GoForward(proxy)
@@ -897,7 +911,7 @@ const App = () => {
                 >
                   Вперед
                 </button>
-                <button
+                <button className="main_btn"
                   onClick={() => {
                     const proxy = new BattleProxy(battle)
                     const action = new MakeMove(proxy)
@@ -918,7 +932,7 @@ const App = () => {
                 >
                   Атаковать
                 </button>
-                <button
+                <button className="main_btn"
                   onClick={() => {
                     const proxy = new BattleProxy(battle)
                     const action = new MakeFight(proxy)
@@ -939,7 +953,7 @@ const App = () => {
                 >
                   До победы
                 </button>
-                <button
+                <button className="main_btn back_btn"
                   onClick={() => {
                     setBattle(null)
                     setHistory([])
@@ -1085,7 +1099,7 @@ const App = () => {
                 ))}
               </div>
               <div className="controlls">
-                <button
+                <button className="big_btn main_btn" 
                   onClick={() => {
                     const battle = new Battle()
                     setBattle(battle)
