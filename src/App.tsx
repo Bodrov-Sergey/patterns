@@ -952,34 +952,79 @@ const App = () => {
                   Выйти в главное меню
                 </button>
               </div>
+              {!battle.redArmy.length && (
+                <div className="result blue">
+                  Победа команды <span>синих!</span>
+                </div>
+              )}
+              {!battle.blueArmy.length && (
+                <div className="result red">
+                  Победа команды <span>красных!</span>
+                </div>
+              )}
+              {isDraw && <div className="result">К сожалению у вас ничья</div>}
               <div className="battle_wrapper">
                 <div className="team">
                   <h3 className="team_name blue">
                     Команда <span>синих</span>
                   </h3>
                   {battle.blueArmy.map((el, index) => (
-                    <div key={el.UnitName + index}>
-                      {el.UnitName} {el.HitPoints} {el.Attack} {el.Defense}
+                    <div className="battle_unit" key={el.UnitName + index}>
+                      <div className="battle_unit_name">{el.UnitName}</div>
+                      <div className="battle_unit_skills">
+                        <div className="battle_unit_skill">
+                          <img src="like.png" alt="heart" />
+                          {el.HitPoints.toFixed(2)}
+                        </div>
+                        <div className="battle_unit_skill">
+                          <img src="sword.png" alt="heart" />
+                          {el.Attack}
+                        </div>
+                        <div className="battle_unit_skill">
+                          <img src="shield.png" alt="heart" />
+                          {el.Defense}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
-                <div className="move">Ход: {activeMove}</div>
+                <div className="middle">
+                  <div className="move">Ход: {activeMove}</div>
+                  {logger.length ? (
+                    <div className="loggs_wrapper">
+                      <div className="loggs">
+                        {logger.map((el) => (
+                          <div>{el}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
                 <div className="team">
                   <h3 className="team_name red">
                     Команда <span>красных</span>
                   </h3>
                   {battle.redArmy.map((el, index) => (
-                    <div key={el.UnitName + index}>
-                      {el.UnitName} {el.HitPoints} {el.Attack} {el.Defense}
+                    <div className="battle_unit" key={el.UnitName + index}>
+                      <div className="battle_unit_name">{el.UnitName}</div>
+                      <div className="battle_unit_skills">
+                        <div className="battle_unit_skill">
+                          <img src="like.png" alt="heart" />
+                          {el.HitPoints.toFixed(2)}
+                        </div>
+                        <div className="battle_unit_skill">
+                          <img src="sword.png" alt="heart" />
+                          {el.Attack}
+                        </div>
+                        <div className="battle_unit_skill">
+                          <img src="shield.png" alt="heart" />
+                          {el.Defense}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {isDraw && <div>К сожалению у вас ничья</div>}
-              {logger.map((el) => (
-                <div>{el}</div>
-              ))}
             </>
           ) : (
             <>
